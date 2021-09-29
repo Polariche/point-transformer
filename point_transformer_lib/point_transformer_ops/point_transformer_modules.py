@@ -12,8 +12,21 @@ import knn_cuda
 class knn(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, y, k, return_ind=False):
-        dist, ind = knn_cuda.forward(x,y,k)
-        ctx.save_for_backward(x, y, dist, ind)
+        shp = x.shape
+
+        x = x.view(-1, *x.shape[-2:])
+        y = y.view(-1, *y.shape[-2:])
+
+        dist = torch.zeros((x.shape[-3], x.shape[-2], y.shape[-2]), dtype=x.shape, device=x.device)
+        ind = torch.zeros((x.shape[-3], x.shape[-2], y.shape[-2]), device=x.device).long()
+
+        for i, (x_, y_) in enumerate(zip(x,y)):
+            dist[i], ind[i] = knn_cuda.forward(x_,y_,k)
+
+        ctx.save_for_backward(x, y, dist, ind, torch.tensor(shp))
+
+        dist = dist.view((*shp[:-2], x.shape[-2], y.shape[-2]))
+        ind = ind.view((*shp[:-2], x.shape[-2], y.shape[-2]))
 
         if return_ind:
             return dist, ind
@@ -22,9 +35,17 @@ class knn(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        x, y, dist, ind = ctx.saved_tensors
+        x, y, dist, ind, shp = ctx.saved_tensors
 
-        d_x, d_y = knn_cuda.backward(grad_output, x, y, dist, ind)
+        d_x = torch.zeros_like(x)
+        d_y = torch.zeros_like(y)
+
+        for i, (x_, y_, dist_, ind_) in enumerate(zip(x,y, dist, ind)):
+            d_x[i], d_y[i] = knn_cuda.backward(grad_output, x_, y_, dist_, ind_)
+
+        d_x = d_x.view((*shp[:-2], *x.shape[-2:]))
+        d_y = d_y.view((*shp[:-2], *y.shape[-2:]))
+
         return d_x, d_y, None
 
 knn_f = knn.apply
@@ -59,7 +80,7 @@ class PointTransformerBlock(nn.Module):
 
     def forward(self, x, pos):
 
-        _, ind = knn_f(pos, pos, self.k, return_ind=True)
+        _, ind = knn_f(pos, pos, self.k, True)
         ind = ind.long()
 
         x_k = x[ind]                # (n, k, in_dim)
