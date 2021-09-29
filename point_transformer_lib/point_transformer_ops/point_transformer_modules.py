@@ -7,6 +7,27 @@ from torch import einsum
 import numpy as np
 import point_transformer_ops.point_transformer_utils as pt_utils
 
+import knn_cuda
+
+class knn(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, y, k, return_ind=False):
+        dist, ind = knn_cuda.forward(x,y,k)
+        ctx.save_for_backward(x, y, dist, ind)
+
+        if return_ind:
+            return dist, ind
+        else:
+            return dist
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        x, y, dist, ind = ctx.saved_tensors
+
+        d_x, d_y = knn_cuda.backward(grad_output, x, y, dist, ind)
+        return d_x, d_y, None
+
+knn_f = knn.apply
 
 def idx_pt(pts, idx):
     raw_size  = idx.size()
@@ -16,53 +37,48 @@ def idx_pt(pts, idx):
 
 
 class PointTransformerBlock(nn.Module):
-    def __init__(self, dim, k):
+    def __init__(self, dim, k, pos_dim=3):
         super().__init__()
-        
-        self.prev_linear = nn.Linear(dim, dim)
-
         self.k = k
 
-        self.to_q = nn.Linear(dim, dim, bias=False)
-        self.to_k = nn.Linear(dim, dim, bias=False)
-        self.to_v = nn.Linear(dim, dim, bias=False)
-        
-        # position encoding 
-        self.pos_mlp = nn.Sequential(
-            nn.Linear(3, dim),
-            nn.ReLU(True),
-            nn.Linear(dim, dim)
-        )
+        self.lin_q = nn.Linear(dim, dim, bias=False)
+        self.lin_k = nn.Linear(dim, dim, bias=False)
+        self.lin_v = nn.Linear(dim, dim, bias=False)
 
-        self.attn_mlp = nn.Sequential(
-            nn.Linear(dim, dim),
-            nn.ReLU(True),
-            nn.Linear(dim, dim)
-        )
+        self.mid = nn.Sequential(
+            nn.Linear(dim, dim), 
+            nn.ReLU(), 
+            nn.Linear(dim, dim))
 
-        self.final_linear = nn.Linear(dim, dim)
+        self.pos_enc = nn.Sequential(
+            nn.Linear(pos_dim, dim), 
+            nn.ReLU(), 
+            nn.Linear(dim, dim))
+    
+        self.final = nn.Linear(dim, dim)
 
     def forward(self, x, pos):
-        # queries, keys, values
 
-        x_pre = x
-        
-        knn_idx = pt_utils.kNN_torch(pos, pos, self.k)
-        knn_xyz = pt_utils.index_points(pos, knn_idx)
+        _, ind = knn_f(pos, pos, self.k, return_ind=True)
+        ind = ind.long()
 
-        q = self.to_q(x)
-        k = idx_pt(self.to_k(x), knn_idx)
-        v = idx_pt(self.to_v(x), knn_idx)
-        
-        pos_enc = self.pos_mlp(pos[:,:,None]-knn_xyz)
+        x_k = x[ind]                # (n, k, in_dim)
+        x_ = x.unsqueeze(-2)        # (n, 1, in_dim)
 
-        attn = self.attn_mlp(q[:,:,None]-k+pos_enc)
-        attn = F.softmax(attn / np.sqrt(k.size(-1)), dim=-2)
+        pos_k = pos[ind]            # (n, k, 3)
+        pos_ = pos.unsqueeze(-2)    # (n, 1, 3)
 
-        agg = einsum('b i j d, b i j d -> b i d', attn, v+pos_enc)
-        agg = self.final_linear(agg) + x_pre
+        pe = self.pos_enc(pos_ - pos_k)
 
-        return agg
+        y = self.mid(self.lin_q(x_) - self.lin_k(x_k) + pe)
+        y = F.softmax(y / np.sqrt(y.shape[-1]), dim=-2)
+
+        z = self.lin_v(x_k) + pe
+
+        final = (y * z).sum(dim=-2)
+        final = self.final(final) + x
+
+        return final
 
 
 class TransitionDown(nn.Module):
