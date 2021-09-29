@@ -17,7 +17,7 @@ class knn(torch.autograd.Function):
         x = x.view(-1, *x.shape[-2:])
         y = y.view(-1, *y.shape[-2:])
 
-        dist = torch.zeros((x.shape[-3], x.shape[-2], y.shape[-2]), dtype=x.shape, device=x.device)
+        dist = torch.zeros((x.shape[-3], x.shape[-2], y.shape[-2]), dtype=x.dtype, device=x.device)
         ind = torch.zeros((x.shape[-3], x.shape[-2], y.shape[-2]), device=x.device).long()
 
         for i, (x_, y_) in enumerate(zip(x,y)):
