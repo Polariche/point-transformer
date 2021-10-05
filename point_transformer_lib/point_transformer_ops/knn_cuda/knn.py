@@ -30,6 +30,15 @@ class hyper_knn_test(torch.autograd.Function):
 
         return dist
 
+def _mobius_add(x, y, c):
+	x2 = x.pow(2).sum(dim=-1, keepdim=True)
+	y2 = y.pow(2).sum(dim=-1, keepdim=True)
+	xy = (x * y).sum(dim=-1, keepdim=True)
+	num = (1 + 2 * c * xy + c * y2) * x + (1 - c * x2) * y
+	denom = 1 + 2 * c * xy + c ** 2 * x2 * y2
+	out_ = num / (denom + 1e-5)
+	# return _project(out_, c) proj X
+	return out_
 
 if __name__ == "__main__":
     x = torch.randn(33,2).cuda().requires_grad_()
@@ -37,7 +46,9 @@ if __name__ == "__main__":
     k = 33
 
     #print(pmath.dist(x,y,c=1.0))
-    print(torch.pow(x.unsqueeze(1) - y.unsqueeze(0), 2).sum(dim=-1))
+    #print(torch.pow(x.unsqueeze(1) - y.unsqueeze(0), 2).sum(dim=-1))
+
+    print(_mobius_add(-x,y,1.0).norm(dim=-1,p=2,keepdim=False))
     print(knn_cuda.hyper_forward(x,y,k,1.0))
     
 
