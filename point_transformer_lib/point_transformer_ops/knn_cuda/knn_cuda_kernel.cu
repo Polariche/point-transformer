@@ -87,7 +87,7 @@ namespace {
       if (out_cmp > maxnorm) {
         out = maxnorm;
       }
-      
+
       out = 2 * atanh(sqrt_curv * out) / (sqrt_curv + denom_add);
 
       dist[a][b] = out;
@@ -418,5 +418,5 @@ std::vector<torch::Tensor> hyper_knn_cuda_forward(
   }));
 
 
-  return {dist_origin};
+  return {dist, ind};
 }
