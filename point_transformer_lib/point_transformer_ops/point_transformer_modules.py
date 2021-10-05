@@ -48,7 +48,34 @@ class knn(torch.autograd.Function):
 
         return d_x, d_y, None
 
+
+class hyper_knn(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, y, k, curv=1.0, return_ind=False):
+        shp = x.shape
+
+        x = x.view(-1, *x.shape[-2:])
+        y = y.view(-1, *y.shape[-2:])
+
+        dist = torch.zeros((x.shape[-3], x.shape[-2], k), dtype=x.dtype, device=x.device)
+        ind = torch.zeros((x.shape[-3], x.shape[-2], k), device=x.device).long()
+
+        for i, (x_, y_) in enumerate(zip(x,y)):
+            dist[i], ind[i] = knn_cuda.hyper_forward(x_,y_,k, curv)
+
+        #ctx.save_for_backward(x, y, dist, ind, torch.tensor(shp))
+
+        dist = dist.view((*shp[:-2], x.shape[-2], k))
+        ind = ind.view((*shp[:-2], x.shape[-2], k))
+
+        if return_ind:
+            return dist, ind
+        else:
+            return dist
+
+
 knn_f = knn.apply
+h_knn_f = hyper_knn.apply
 
 def idx_pt(pts, idx):
     raw_size  = idx.size()
@@ -80,19 +107,7 @@ class PointTransformerBlock(nn.Module):
 
     def forward(self, x, pos):
 
-
-        import pmath, nn
-        
-        curvature = 1
-        self.e2p = ToPoincare(self.c, train_c=train_c)
-
-        # Geodesic distance
-        B, coord = torch.size(pos)
-        tm_center = x.permute(0, 2, 3, 1).unsqueeze(dim=3)
-        geo_dist = pmath.dist(x=self.e2p(tm_center), y=self.e2p(tm), c=self.c)
-
-
-        _, ind = knn_f(pos, pos, self.k, True)
+        _, ind = h_knn_f(pos, pos, self.k, 1.0, True)
         ind = ind.long()
 
         x_k = idx_pt(x, ind)        # (b, n, k, in_dim)
@@ -153,9 +168,11 @@ class TransitionDown(nn.Module):
         )  # p2: (B, M, 3)
 
         # 2: kNN & MLP
-        knn_fn = pt_utils.kNN_torch if self.fast else pt_utils.kNN
-        neighbors = knn_fn(p2, p1, self.k)  # neighbors: (B, M, k)
-
+        #knn_fn = pt_utils.kNN_torch if self.fast else pt_utils.kNN
+        #neighbors = knn_fn(p2, p1, self.k)  # neighbors: (B, M, k)
+        _, neighbors = h_knn_f(p2, p1, self.k, 1.0, True)
+        neighbors = neighbors.long()
+        
         # 2-1: Apply MLP onto each feature
         x_flipped = x.transpose(1, 2).contiguous()
         mlp_x = (

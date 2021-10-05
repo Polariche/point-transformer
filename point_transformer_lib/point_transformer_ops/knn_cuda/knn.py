@@ -26,9 +26,9 @@ class knn(torch.autograd.Function):
 class hyper_knn_test(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, y, k, curv):
-        dist = knn_cuda.hyper_forward(x,y,k, curv)
+        dist, ind = knn_cuda.hyper_forward(x,y,k, curv)
 
-        return dist
+        return dist, ind
 
 def _mobius_add(x, y, c):
 	x2 = x.pow(2).sum(dim=-1, keepdim=True)
