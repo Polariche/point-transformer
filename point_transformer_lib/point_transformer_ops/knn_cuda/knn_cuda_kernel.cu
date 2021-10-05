@@ -303,7 +303,7 @@ std::vector<torch::Tensor> knn_cuda_forward(
   // sqrt
 
 
-  return {dist, ind};
+  return {dist_origin};
 }
 
 

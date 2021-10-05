@@ -1,6 +1,11 @@
 import torch
 import knn_cuda
 
+import sys
+import os
+
+sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
+import pmath
 
 class knn(torch.autograd.Function):
     @staticmethod
@@ -18,24 +23,27 @@ class knn(torch.autograd.Function):
         return d_x, d_y, None
 
 
+class hyper_knn_test(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, y, k):
+        dist = knn_cuda.hyper_forward(x,y,k)
+
+        return dist
+
+
 if __name__ == "__main__":
     x = torch.randn(33,2).cuda().requires_grad_()
     y = torch.randn(33,2).cuda().requires_grad_()
     k = 33
 
-
-    torch.sqrt(torch.pow(x.unsqueeze(0) - y.unsqueeze(1), 2).sum(dim=2)).sum().backward()
-
-    #print(x.grad, y.grad)
-
     x.grad = None
     y.grad = None
 
-    knn_f = knn.apply
-    dist = knn_f(x,y,k)
-    dist.sum().backward()
+    knn_f = hyper_knn_test.apply
+    dist = knn_f(x,y,k,1.0)
     print(dist)
-    #print(x.grad, y.grad)
+
+    print(pmath.dist(x,y,1.0))
 
 
 
