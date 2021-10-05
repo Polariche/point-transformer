@@ -79,10 +79,15 @@ namespace {
       const scalar_t coeff3 = 1 + 2*curv*sum_xy + curv*curv * sum_x2[tx]*sum_y2[ty] + denom_add;
 
       scalar_t out = (coeff1*coeff1*sum_x2[tx] + 2*coeff1*coeff2*sum_xy + coeff2*coeff2*sum_y2[ty]) / (coeff3*coeff3);
+      scalar_t out_cmp;
+      const scalar_t maxnorm = (1 - 1e-3) / sqrt_curv;
+
       out = sqrt(out);
-      if (out > 1e-5) {
-        out = (1-1e-3) / sqrt_curv;
+      out_cmp = out < 1e-5 ? 1e-5 : out;
+      if (out_cmp > maxnorm) {
+        out = maxnorm;
       }
+      
       out = 2 * atanh(sqrt_curv * out) / (sqrt_curv + denom_add);
 
       dist[a][b] = out;
