@@ -17,16 +17,16 @@ class knn(torch.autograd.Function):
         x = x.view(-1, *x.shape[-2:])
         y = y.view(-1, *y.shape[-2:])
 
-        dist = torch.zeros((x.shape[-3], x.shape[-2], y.shape[-2]), dtype=x.dtype, device=x.device)
-        ind = torch.zeros((x.shape[-3], x.shape[-2], y.shape[-2]), device=x.device).long()
+        dist = torch.zeros((x.shape[-3], x.shape[-2], k), dtype=x.dtype, device=x.device)
+        ind = torch.zeros((x.shape[-3], x.shape[-2], k), device=x.device).long()
 
         for i, (x_, y_) in enumerate(zip(x,y)):
             dist[i], ind[i] = knn_cuda.forward(x_,y_,k)
 
         ctx.save_for_backward(x, y, dist, ind, torch.tensor(shp))
 
-        dist = dist.view((*shp[:-2], x.shape[-2], y.shape[-2]))
-        ind = ind.view((*shp[:-2], x.shape[-2], y.shape[-2]))
+        dist = dist.view((*shp[:-2], x.shape[-2], k))
+        ind = ind.view((*shp[:-2], x.shape[-2], k))
 
         if return_ind:
             return dist, ind
@@ -80,14 +80,26 @@ class PointTransformerBlock(nn.Module):
 
     def forward(self, x, pos):
 
+
+        import pmath, nn
+        
+        curvature = 1
+        self.e2p = ToPoincare(self.c, train_c=train_c)
+
+        # Geodesic distance
+        B, coord = torch.size(pos)
+        tm_center = x.permute(0, 2, 3, 1).unsqueeze(dim=3)
+        geo_dist = pmath.dist(x=self.e2p(tm_center), y=self.e2p(tm), c=self.c)
+
+
         _, ind = knn_f(pos, pos, self.k, True)
         ind = ind.long()
 
-        x_k = x[ind]                # (n, k, in_dim)
-        x_ = x.unsqueeze(-2)        # (n, 1, in_dim)
+        x_k = idx_pt(x, ind)        # (b, n, k, in_dim)
+        x_ = x.unsqueeze(-2)        # (b, n, 1, in_dim)
 
-        pos_k = pos[ind]            # (n, k, 3)
-        pos_ = pos.unsqueeze(-2)    # (n, 1, 3)
+        pos_k = idx_pt(pos, ind)    # (b, n, k, 3)
+        pos_ = pos.unsqueeze(-2)    # (b, n, 1, 3)
 
         pe = self.pos_enc(pos_ - pos_k)
 

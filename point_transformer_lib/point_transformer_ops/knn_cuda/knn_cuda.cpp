@@ -16,6 +16,12 @@ std::vector<torch::Tensor> knn_cuda_backward(
 	torch::Tensor dist,
 	torch::Tensor ind);
 
+std::vector<torch::Tensor> hyper_knn_cuda_forward(
+    torch::Tensor x, 
+    torch::Tensor y, 
+    int k,
+    double curv);
+
 // C++ interface
 
 
@@ -54,8 +60,20 @@ std::vector<torch::Tensor> knn_backward(
   return knn_cuda_backward(d_dist, x, y, dist, ind);
 }
 
+std::vector<torch::Tensor> hyper_knn_forward(
+    torch::Tensor x, 
+    torch::Tensor y, 
+    int k,
+    double curv) {
+
+  CHECK_x(x);
+  CHECK_x(y);
+
+  return hyper_knn_cuda_forward(x,y,k,curv);
+}
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("forward", &knn_forward, "KNN forward (CUDA)");
   m.def("backward", &knn_backward, "KNN backward (CUDA)");
+  m.def("hyper_forward", &hyper_knn_forward, "hyper KNN backward (CUDA)");
 }

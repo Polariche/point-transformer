@@ -10,7 +10,80 @@
 #define SUBMATRIX_SIZE   32
 
 namespace {
+  template <typename scalar_t>
+  __global__ void hyper_dist_cuda_forward_kernel(
+    const torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> x,
+    const torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> y,
+    const int nx,
+    const int ny,
+    const int c,
+    const scalar_t curv,
+    torch::PackedTensorAccessor<scalar_t,2,torch::RestrictPtrTraits,size_t> dist) {
 
+    __shared__ scalar_t xs[SUBMATRIX_SIZE][SUBMATRIX_SIZE];
+    __shared__ scalar_t ys[SUBMATRIX_SIZE][SUBMATRIX_SIZE];
+
+    __shared__ scalar_t sum_x2[SUBMATRIX_SIZE];
+    __shared__ scalar_t sum_y2[SUBMATRIX_SIZE];
+
+    scalar_t sum_xy = 0;
+
+    // locate my dim & ind
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    // for copying
+    const int m = blockIdx.x * SUBMATRIX_SIZE + tx;
+    const int n = blockIdx.y * SUBMATRIX_SIZE + tx;
+    int m_within = m < nx;
+    int n_within = n < ny;
+
+    // for computation
+    const int a = blockIdx.x * SUBMATRIX_SIZE + tx;
+    const int b = blockIdx.y * SUBMATRIX_SIZE + ty;
+    int a_within = a < nx;
+    int b_within = b < ny;
+
+    for (int i = 0; i < c; i += SUBMATRIX_SIZE) {
+      // compute sum(x), sum(y), sum(x2), sum(y2)
+      if (i + ty < c) {
+        xs[tx][ty] = m_within ? x[m][i + ty] : 0;
+        ys[tx][ty] = n_within ? x[n][i + ty] : 0;
+
+        atomicAdd(&(sum_x2[tx]), xs[tx][ty]*xs[tx][ty]);
+        atomicAdd(&(sum_y2[tx]), ys[tx][ty]*ys[tx][ty]);
+
+      } else {
+        // channel is out-of-bounds
+        xs[tx][ty] = 0;
+        ys[tx][ty] = 0;
+      }
+      __syncthreads();
+
+      // compute sum(xy)
+      for (int j=0;j<SUBMATRIX_SIZE;j++) {
+        sum_xy += - xs[tx][j] * ys[ty][j];    // due to _mobius_add(-x, y), signs are flipped for sum(xy)
+      }
+
+      __syncthreads();
+    }
+
+    if (a_within && b_within) {
+      const scalar_t sqrt_curv = sqrt(curv);
+      const scalar_t denom_add = 1e-5;
+
+      // mobius_add & L2 norm
+      const scalar_t coeff1 = 1 + 2*curv*sum_xy + curv*sum_y2[ty];
+      const scalar_t coeff2 = 1 - curv*sum_x2[tx];
+      const scalar_t coeff3 = 1 + 2*curv*sum_xy + curv*curv * sum_x2[tx]*sum_y2[ty] + denom_add;
+
+      scalar_t out = (coeff1*coeff1*sum_x2[tx] + 2*coeff1*coeff2*sum_xy + coeff2*coeff2*sum_y2[ty]) / (coeff3*coeff3);
+      out = 2 * atanh(sqrt_curv * out) / (sqrt_curv + denom_add);
+
+      dist[a][b] = out;
+    }
+    
+  }
 
   template <typename scalar_t>
   __global__ void dist_cuda_forward_kernel(
@@ -279,3 +352,61 @@ std::vector<torch::Tensor> knn_cuda_backward(
   return {d_x, d_y};
 }
 
+std::vector<torch::Tensor> hyper_knn_cuda_forward(
+    torch::Tensor x, 
+    torch::Tensor y, 
+    int k,
+    double curv) {
+
+  const auto nx = x.size(0);
+  const auto cx = x.size(1);
+
+  const auto ny = y.size(0);
+  const auto cy = y.size(1);
+
+  assert (cx == cy);
+
+  //auto options = torch::TensorOptions().dtype(x.type()).device(x.device(), 1);
+  auto dist_origin = torch::zeros({nx, ny}, x.type());
+  auto dist = torch::zeros({nx, k}, x.type());
+  auto ind = torch::zeros({nx, k}, x.type());
+  
+
+  const int sm = SUBMATRIX_SIZE;
+  const int sm2 = SUBMATRIX_SIZE*SUBMATRIX_SIZE;
+
+  const dim3 d_blocks(nx/sm + (nx%sm?1:0), ny/sm + (ny%sm?1:0), 1);
+  const dim3 s_blocks(nx/sm2 + (nx%sm2?1:0), 1, 1);
+
+  const dim3 d_threads(sm, sm, 1);
+  const dim3 s_threads(sm2, 1, 1);
+
+  // compute distance
+  AT_DISPATCH_FLOATING_TYPES(x.type(), "hyper_dist_forward_cuda", ([&] {
+    hyper_dist_cuda_forward_kernel<scalar_t><<<d_blocks, d_threads>>>(
+        x.packed_accessor<scalar_t,2,torch::RestrictPtrTraits,size_t>(),
+        y.packed_accessor<scalar_t,2,torch::RestrictPtrTraits,size_t>(),
+        nx,
+        ny,
+        cx,
+        curv,
+        dist_origin.packed_accessor<scalar_t,2,torch::RestrictPtrTraits,size_t>());
+  }));
+
+
+
+  // sort
+  AT_DISPATCH_FLOATING_TYPES(dist_origin.type(), "sort_cuda", ([&] {
+    sort_cuda_kernel<scalar_t><<<s_blocks, s_threads>>>(
+        nx,
+        ny,
+        cx,
+        k,
+        dist_origin.packed_accessor<scalar_t,2,torch::RestrictPtrTraits,size_t>(),
+        dist.packed_accessor<scalar_t,2,torch::RestrictPtrTraits,size_t>(),
+        ind.packed_accessor<scalar_t,2,torch::RestrictPtrTraits,size_t>());
+  }));
+
+
+  return {dist, ind};
+}
