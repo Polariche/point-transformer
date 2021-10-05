@@ -45,10 +45,10 @@ if __name__ == "__main__":
     y = torch.randn(33,2).cuda().requires_grad_()
     k = 33
 
-    #print(pmath.dist(x,y,c=1.0))
+    print(pmath.dist(x.unsqueeze(1), y.unsqueeze(0), c=1.0))
     #print(torch.pow(x.unsqueeze(1) - y.unsqueeze(0), 2).sum(dim=-1))
 
-    print(_mobius_add(-x,y,1.0).norm(dim=-1,p=2,keepdim=False))
+    #print(_mobius_add(-x.unsqueeze(1),y.unsqueeze(0),1.0).norm(dim=-1,p=2,keepdim=False))
     print(knn_cuda.hyper_forward(x,y,k,1.0))
     
 

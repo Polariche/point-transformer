@@ -164,8 +164,8 @@ def _mobius_add(x, y, c):
 	num = (1 + 2 * c * xy + c * y2) * x + (1 - c * x2) * y
 	denom = 1 + 2 * c * xy + c ** 2 * x2 * y2
 	out_ = num / (denom + 1e-5)
-	# return _project(out_, c) proj X
-	return out_
+	return _project(out_, c) #proj X
+	# return out_
 
 
 def dist(x, y, *, c=1.0, keepdim=False):
