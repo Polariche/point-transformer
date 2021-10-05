@@ -25,8 +25,8 @@ class knn(torch.autograd.Function):
 
 class hyper_knn_test(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, y, k):
-        dist = knn_cuda.hyper_forward(x,y,k)
+    def forward(ctx, x, y, k, curv):
+        dist = knn_cuda.hyper_forward(x,y,k, curv)
 
         return dist
 
@@ -36,14 +36,10 @@ if __name__ == "__main__":
     y = torch.randn(33,2).cuda().requires_grad_()
     k = 33
 
-    x.grad = None
-    y.grad = None
-
-    knn_f = hyper_knn_test.apply
-    dist = knn_f(x,y,k,1.0)
-    print(dist)
-
-    print(pmath.dist(x,y,1.0))
+    #print(pmath.dist(x,y,c=1.0))
+    print(torch.pow(x.unsqueeze(1) - y.unsqueeze(0), 2).sum(dim=-1))
+    print(knn_cuda.hyper_forward(x,y,k,1.0))
+    
 
 
 

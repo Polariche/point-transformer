@@ -69,6 +69,7 @@ namespace {
     }
 
     if (a_within && b_within) {
+      /*
       const scalar_t sqrt_curv = sqrt(curv);
       const scalar_t denom_add = 1e-5;
 
@@ -81,6 +82,9 @@ namespace {
       out = 2 * atanh(sqrt_curv * out) / (sqrt_curv + denom_add);
 
       dist[a][b] = out;
+      */
+
+      dist[a][b] = sum_x2[tx] + 2*sum_xy + sum_y2[ty];
     }
     
   }
@@ -408,5 +412,5 @@ std::vector<torch::Tensor> hyper_knn_cuda_forward(
   }));
 
 
-  return {dist, ind};
+  return {dist_origin};
 }
