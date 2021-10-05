@@ -48,7 +48,7 @@ namespace {
       // compute sum(x), sum(y), sum(x2), sum(y2)
       if (i + ty < c) {
         xs[tx][ty] = m_within ? x[m][i + ty] : 0;
-        ys[tx][ty] = n_within ? x[n][i + ty] : 0;
+        ys[tx][ty] = n_within ? y[n][i + ty] : 0;
 
         atomicAdd(&(sum_x2[tx]), xs[tx][ty]*xs[tx][ty]);
         atomicAdd(&(sum_y2[tx]), ys[tx][ty]*ys[tx][ty]);
