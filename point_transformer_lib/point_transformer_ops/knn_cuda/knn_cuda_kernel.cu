@@ -182,7 +182,7 @@ namespace {
         cur_dist = dist_origin[i][j];
 
         we = j-1 < k-1? j-1 : k-1;
-        for (w=we;w>0;w--) {
+        for (w=we;w>=0;w--) {
           if (dist[i][w] >= cur_dist) {
             if (w < k-1) {
               dist[i][w+1] = dist[i][w];
