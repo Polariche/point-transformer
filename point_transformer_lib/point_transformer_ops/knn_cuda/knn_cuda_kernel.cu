@@ -188,6 +188,10 @@ namespace {
               dist[i][w+1] = dist[i][w];
               ind[i][w+1] = ind[i][w];
             }
+            if (w == 0) {
+              dist[i][0] = cur_dist;
+              ind[i][0] = j;
+            }
           } else {
             if (w < k-1) {
               dist[i][w+1] = cur_dist;
