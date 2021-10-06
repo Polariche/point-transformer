@@ -187,7 +187,7 @@ namespace {
         ws = 0;
         we = j-1 < k-1? j-1 : k-1;
         
-        while(we >= ws) {  // binary search until the sub-array is indivisible
+        while(we > ws) {  // binary search until the sub-array is indivisible
           w = (we + ws) / 2;
           if (dist[i][w] > cur_dist) {
             we = w - 1;
