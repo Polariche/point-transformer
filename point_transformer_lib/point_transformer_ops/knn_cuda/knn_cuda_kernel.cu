@@ -175,43 +175,27 @@ namespace {
       int j,w, ws,we;
       scalar_t cur_dist;
 
-      cur_dist = dist_origin[i][0];
-
       dist[i][0] = dist_origin[i][0];
       ind[i][0] = 0;
       
-      
       for(j=1;j<ny;j++) {
         cur_dist = dist_origin[i][j];
-      
-        ws = 0;
+
         we = j-1 < k-1? j-1 : k-1;
-        
-        while(we > ws) {  // binary search until the sub-array is indivisible
-          w = (we + ws) / 2;
-          if (dist[i][w] > cur_dist) {
-            we = w - 1;
-          } else if (dist[i][w] < cur_dist) {
-            ws = w + 1;
+        for (w=we;w>0;w--) {
+          if (dist[i][w] >= cur_dist) {
+            if (w < k-1) {
+              dist[i][w+1] = dist[i][w];
+              ind[i][w+1] = ind[i][w];
+            }
           } else {
+            if (w < k-1) {
+              dist[i][w+1] = cur_dist;
+              ind[i][w+1] = j;
+            }
             break;
           }
         }
-        
-        if (dist[i][ws] >= cur_dist) {
-          // shift everything
-          we = j < k-1? j : k-1;
-          for (w=we;w>ws;w--) {
-            dist[i][w] = dist[i][w-1];
-            ind[i][w] = ind[i][w-1];
-          }
-          dist[i][ws] = cur_dist;
-          ind[i][ws] = j;
-        } else if (j < k) {
-          dist[i][j] = cur_dist;
-          ind[i][j] = j;
-        }
-       
       }
        
     }
