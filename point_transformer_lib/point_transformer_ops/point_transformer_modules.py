@@ -107,7 +107,7 @@ class PointTransformerBlock(nn.Module):
 
     def forward(self, x, pos):
 
-        _, ind = h_knn_f(pos, pos, self.k, 1.0, True)
+        _, ind = knn_f(pos, pos, self.k, True)
         ind = ind.long()
 
         x_k = idx_pt(x, ind)        # (b, n, k, in_dim)
@@ -161,17 +161,17 @@ class TransitionDown(nn.Module):
         p1_flipped = p1.transpose(1, 2).contiguous()
         p2 = (
             pt_utils.gather_operation(
-                p1_flipped, pt_utils.farthest_point_sample(p1, M)
+                p1_flipped, pt_utils.hyper_farthest_point_sample(p1, M, 0.1)
             )
             .transpose(1, 2)
             .contiguous()
         )  # p2: (B, M, 3)
 
         # 2: kNN & MLP
-        #knn_fn = pt_utils.kNN_torch if self.fast else pt_utils.kNN
-        #neighbors = knn_fn(p2, p1, self.k)  # neighbors: (B, M, k)
-        _, neighbors = h_knn_f(p2, p1, self.k, 1.0, True)
-        neighbors = neighbors.long()
+        knn_fn = pt_utils.kNN_torch if self.fast else pt_utils.kNN
+        neighbors = knn_fn(p2, p1, self.k)  # neighbors: (B, M, k)
+        #_, neighbors = h_knn_f(p2, p1, self.k, 1.0, True)
+        #neighbors = neighbors.long()
         
         # 2-1: Apply MLP onto each feature
         x_flipped = x.transpose(1, 2).contiguous()

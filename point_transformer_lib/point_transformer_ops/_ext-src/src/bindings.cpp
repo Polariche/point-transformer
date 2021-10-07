@@ -7,7 +7,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("gather_points", &gather_points);
   m.def("gather_points_grad", &gather_points_grad);
   m.def("farthest_point_sampling", &farthest_point_sampling);
-
+  m.def("hyper_farthest_point_sampling", &hyper_farthest_point_sampling);
   m.def("three_nn", &three_nn);
   m.def("three_interpolate", &three_interpolate);
   m.def("three_interpolate_grad", &three_interpolate_grad);
