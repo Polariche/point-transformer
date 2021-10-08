@@ -83,7 +83,7 @@ class HyperFarthestPointSampling(Function):
         torch.Tensor
             (B, npoint) tensor containing the set
         """
-        out = _ext.farthest_point_sampling(xyz, npoint, curv)
+        out = _ext.hyper_farthest_point_sampling(xyz, npoint, curv)
 
         ctx.mark_non_differentiable(out)
 
