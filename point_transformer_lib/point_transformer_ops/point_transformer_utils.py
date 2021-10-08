@@ -63,9 +63,38 @@ class FarthestPointSampling(Function):
     def backward(ctx, grad_out):
         return ()
 
+class HyperFarthestPointSampling(Function):
+    @staticmethod
+    def forward(ctx, xyz, npoint, curv):
+        # type: (Any, torch.Tensor, int) -> torch.Tensor
+        r"""
+        Uses iterative farthest point sampling to select a set of npoint features that have the largest
+        minimum distance
+
+        Parameters
+        ----------
+        xyz : torch.Tensor
+            (B, N, 3) tensor where N > npoint
+        npoint : int32
+            number of features in the sampled set
+
+        Returns
+        -------
+        torch.Tensor
+            (B, npoint) tensor containing the set
+        """
+        out = _ext.farthest_point_sampling(xyz, npoint, curv)
+
+        ctx.mark_non_differentiable(out)
+
+        return out
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        return ()
 
 farthest_point_sample = FarthestPointSampling.apply
-
+hyper_farthest_point_sample = HyperFarthestPointSampling.apply
 
 class GatherOperation(Function):
     @staticmethod
