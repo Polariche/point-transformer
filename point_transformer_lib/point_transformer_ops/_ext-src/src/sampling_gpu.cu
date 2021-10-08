@@ -215,7 +215,7 @@ __global__ void hyper_farthest_point_sampling_kernel(
       const float maxnorm = (1 - 1e-3) / sqrt_curv;
 
       float sum_11 = x1*x1+y1*y1+z1*z1;
-      float sum_12 = x1*x2+y1*y2+z1*z2;
+      float sum_12 = -x1*x2-y1*y2-z1*z2;
       float sum_22 = x2*x2+y2*y2+z2*z2;
 
       float coeff1 = 1 + 2*curv*sum_12 + curv*sum_22;
