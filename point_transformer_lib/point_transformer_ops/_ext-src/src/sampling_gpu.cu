@@ -226,7 +226,7 @@ __global__ void hyper_farthest_point_sampling_kernel(
       d = sqrt(d);
       d = d < 1e-5? 1e-5 : d;
       d = d > maxnorm? maxnorm : d;
-      d = 2 * atanh(sqrt_curv * out) / (sqrt_curv + denom_add);
+      d = 2 * atanh(sqrt_curv * d) / (sqrt_curv + denom_add);
 
 
       float d2 = min(d, temp[k]);
